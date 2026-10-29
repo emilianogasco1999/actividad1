@@ -5,59 +5,70 @@ import com.example.myapplication.model.CategoriaConfig
 import com.example.myapplication.model.EstadoRecordatorio
 import com.example.myapplication.model.Prioridad
 import com.example.myapplication.model.Recordatorio
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 
 /**
- * Repositorio encargado de gestionar los datos simulados demostrando el uso de Lists, Sets y Maps.
+ * Interfaz que abstrae las operaciones del repositorio de recordatorios.
+ * Sigue el principio de Inversión de Dependencias (DIP): la capa de presentación dependerá
+ * de esta interfaz y no de una implementación concreta o lista estática.
  */
-class RecordatorioRepository {
+interface RecordatorioRepository {
+    val categoriasUnicas: Set<Categoria>
+    val mapaConfiguracionCategorias: Map<Categoria, CategoriaConfig>
 
-    // 1. Definición de Categorías
+    fun obtenerRecordatorios(): Flow<List<Recordatorio>>
+    fun obtenerRecordatorioPorId(id: String): Flow<Recordatorio?>
+    suspend fun guardarRecordatorio(recordatorio: Recordatorio): Result<Unit>
+    fun obtenerConfiguracionCategoria(categoria: Categoria): CategoriaConfig
+    
+    // Métodos para simulación de estados de error/carga en pruebas
+    fun simularError(activar: Boolean)
+    fun estaErrorSimuladoActivo(): Boolean
+}
+
+/**
+ * Implementación en memoria del repositorio de recordatorios.
+ * Administra el estado de los datos en memoria mediante MutableStateFlow.
+ */
+class InMemoryRecordatorioRepository : RecordatorioRepository {
+
+    // Categorías predefinidas del sistema
     val catTrabajo = Categoria("1", "Trabajo", "💼")
     val catPersonal = Categoria("2", "Personal", "🏠")
     val catSalud = Categoria("3", "Salud", "🏥")
     val catEducacion = Categoria("4", "Educación", "📚")
     val catFinanzas = Categoria("5", "Finanzas", "💰")
 
-    /**
-     * CONSIGNA 3 - USO DE SETS:
-     * Se utiliza un Set para almacenar las categorías únicas del sistema.
-     * Si intentamos añadir duplicados, el Set los ignora automáticamente.
-     */
-    val categoriasUnicas: Set<Categoria> = setOf(
+    override val categoriasUnicas: Set<Categoria> = setOf(
         catTrabajo,
         catPersonal,
         catSalud,
         catEducacion,
-        catFinanzas,
-        catTrabajo // Intencionalmente repetida en la declaración para verificar que el Set elimina duplicados
+        catFinanzas
     )
 
-    /**
-     * CONSIGNA 3 - USO DE MAPS:
-     * Relaciona cada objeto Categoria con su configuración visual y etiqueta descriptiva.
-     */
-    val mapaConfiguracionCategorias: Map<Categoria, CategoriaConfig> = mapOf(
-        catTrabajo to CategoriaConfig("Ámbito Profesional", 0xFF1976D2, "Proyectos, reuniones y entregas de software"),
-        catPersonal to CategoriaConfig("Vida Cotidiana", 0xFF388E3C, "Tareas del hogar y compromisos familiares"),
-        catSalud to CategoriaConfig("Bienestar y Salud", 0xFFD32F2F, "Citas médicas, medicamentos y ejercicios"),
-        catEducacion to CategoriaConfig("Estudios y Cap.", 0xFF7B1FA2, "Lecturas, cursos y tareas universitarias"),
-        catFinanzas to CategoriaConfig("Gestión Económica", 0xFFF57C00, "Pagos de servicios y presupuestos")
+    override val mapaConfiguracionCategorias: Map<Categoria, CategoriaConfig> = mapOf(
+        catTrabajo to CategoriaConfig("Ámbito Profesional", 0xFF1976D2, "Proyectos y entregas"),
+        catPersonal to CategoriaConfig("Vida Cotidiana", 0xFF388E3C, "Tareas del hogar"),
+        catSalud to CategoriaConfig("Bienestar y Salud", 0xFFD32F2F, "Citas médicas y ejercicio"),
+        catEducacion to CategoriaConfig("Estudios", 0xFF7B1FA2, "Lecturas y tareas universitarias"),
+        catFinanzas to CategoriaConfig("Gestión Económica", 0xFFF57C00, "Pagos y presupuestos")
     )
 
-    /**
-     * CONSIGNA 3 - USO DE LISTS:
-     * Almacena el conjunto inicial de recordatorios simulados.
-     */
-    val listaRecordatoriosSimulados: List<Recordatorio> = listOf(
+    private val datosIniciales = listOf(
         Recordatorio(
             id = "REC-001",
-            titulo = "Preparar informe del Módulo 1",
-            descripcion = "Modelar clases de Kotlin y verificar ejecución de la pantalla Compose.",
+            titulo = "Preparar informe del Módulo 2",
+            descripcion = "Desarrollar componentes reutilizables y arquitectura ViewModel en Jetpack Compose.",
             fechaLimite = "2025-04-05 18:00",
             prioridad = Prioridad.ALTA,
             categoria = catTrabajo,
             estado = EstadoRecordatorio.EnProgreso,
-            ubicacionOAviso = "Oficina / Campus Virtual"
+            ubicacionOAviso = "Campus Virtual"
         ),
         Recordatorio(
             id = "REC-002",
@@ -82,58 +93,55 @@ class RecordatorioRepository {
         Recordatorio(
             id = "REC-004",
             titulo = "Revisar bibliografía de Jetpack Compose",
-            descripcion = "Leer documentación oficial sobre Material 3 y State management.",
+            descripcion = "Leer documentación oficial sobre Navigation y StateFlow.",
             fechaLimite = "2025-04-08 20:00",
             prioridad = Prioridad.BAJA,
             categoria = catEducacion,
             estado = EstadoRecordatorio.Completado
-        ),
-        Recordatorio(
-            id = "REC-005",
-            titulo = "Organizar mantenimiento de vehículo",
-            descripcion = "Llevar el coche a revisión técnica anual.",
-            fechaLimite = null,
-            prioridad = Prioridad.MEDIA,
-            categoria = catPersonal,
-            estado = EstadoRecordatorio.Pendiente,
-            ubicacionOAviso = "Taller Mecánico Central"
-        ),
-        Recordatorio(
-            id = "REC-006",
-            titulo = "Prueba de caso inválido para validación",
-            descripcion = null, // Inválido porque prioridad ALTA requiere descripción
-            fechaLimite = "2025-04-15",
-            prioridad = Prioridad.ALTA,
-            categoria = catTrabajo,
-            estado = EstadoRecordatorio.Pendiente
         )
     )
 
-    /**
-     * Filtra la lista de recordatorios según los criterios seleccionados.
-     */
-    fun filtrarRecordatorios(
-        prioridadFiltro: Prioridad? = null,
-        estadoFiltro: EstadoRecordatorio? = null,
-        categoriaFiltro: Categoria? = null,
-        textoBusqueda: String = ""
-    ): List<Recordatorio> {
-        return listaRecordatoriosSimulados.filter { recordatorio ->
-            val coincidePrioridad = prioridadFiltro == null || recordatorio.prioridad == prioridadFiltro
-            val coincideEstado = estadoFiltro == null || recordatorio.estado.nombre == estadoFiltro.nombre
-            val coincideCategoria = categoriaFiltro == null || recordatorio.categoria.id == categoriaFiltro.id
-            val coincideTexto = textoBusqueda.isBlank() ||
-                    recordatorio.titulo.contains(textoBusqueda, ignoreCase = true) ||
-                    (recordatorio.descripcion?.contains(textoBusqueda, ignoreCase = true) == true)
+    private val _recordatoriosState = MutableStateFlow<List<Recordatorio>>(datosIniciales)
+    private var forzarErrorSimulado: Boolean = false
 
-            coincidePrioridad && coincideEstado && coincideCategoria && coincideTexto
+    override fun simularError(activar: Boolean) {
+        forzarErrorSimulado = activar
+    }
+
+    override fun estaErrorSimuladoActivo(): Boolean = forzarErrorSimulado
+
+    override fun obtenerRecordatorios(): Flow<List<Recordatorio>> {
+        return _recordatoriosState.asStateFlow()
+    }
+
+    override fun obtenerRecordatorioPorId(id: String): Flow<Recordatorio?> {
+        return _recordatoriosState.map { lista ->
+            lista.find { it.id == id }
         }
     }
 
-    /**
-     * Obtiene la configuración de una categoría utilizando el Map.
-     */
-    fun obtenerConfiguracionCategoria(categoria: Categoria): CategoriaConfig {
+    override suspend fun guardarRecordatorio(recordatorio: Recordatorio): Result<Unit> {
+        // Simular retardo de red o base de datos asincrónica (600ms)
+        delay(600L)
+
+        if (forzarErrorSimulado) {
+            return Result.failure(Exception("Error de red simulado al intentar guardar el recordatorio."))
+        }
+
+        val listaActual = _recordatoriosState.value.toMutableList()
+        val index = listaActual.indexOfFirst { it.id == recordatorio.id }
+
+        if (index != -1) {
+            listaActual[index] = recordatorio
+        } else {
+            listaActual.add(0, recordatorio) // Insertar al inicio de la lista
+        }
+
+        _recordatoriosState.value = listaActual.toList()
+        return Result.success(Unit)
+    }
+
+    override fun obtenerConfiguracionCategoria(categoria: Categoria): CategoriaConfig {
         return mapaConfiguracionCategorias[categoria]
             ?: CategoriaConfig("General", 0xFF607D8B, "Sin categoría específica")
     }
